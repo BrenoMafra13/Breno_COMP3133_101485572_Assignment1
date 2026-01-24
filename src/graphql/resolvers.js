@@ -4,36 +4,48 @@ const bcrypt = require('bcryptjs');
 const resolvers = {
   Query: {
     login: async (_, { usernameOrEmail, password }) => {
-      const user = await User.findOne({
-        $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }]
-      });
+      try {
+        const user = await User.findOne({
+          $or: [{ username: usernameOrEmail }, { email: usernameOrEmail }]
+        });
 
-      if (!user) {
-        throw new Error('User not found');
+        if (!user) {
+          throw new Error('User not found. Please check your credentials.');
+        }
+
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+          throw new Error('Invalid password. Please try again.');
+        }
+        return "Login successful!";
+      } catch (error) {
+        throw new Error(error.message);
       }
-
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) {
-        throw new Error('Invalid password');
-      }
-
-      return "Login successful!";
     },
   },
 
   Mutation: {
     signup: async (_, { username, email, password }) => {
-      const hashedPassword = await bcrypt.hash(password, 10);
+      try {
+        if (!email.includes('@')) {
+          throw new Error("Invalid email format.");
+        }
 
-      const newUser = new User({
-        username,
-        email,
-        password: hashedPassword,
-        created_at: new Date(),
-        updated_at: new Date()
-      });
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-      return await newUser.save();
+        const newUser = new User({
+          username,
+          email,
+          password: hashedPassword,
+        });
+
+        return await newUser.save();
+      } catch (error) {
+        if (error.code === 11000) {
+          throw new Error("Username or Email already exists.");
+        }
+        throw new Error(error.message);
+      }
     },
   }
 };
